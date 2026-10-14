@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CellBio LabSuite: Treatment & Cytotoxicity Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        bio: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                        },
+                        tech: {
+                            50: '#f0f9ff',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .input-field {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #f8fafc;
+            transition: all 0.2s ease;
+        }
+        .input-field:focus {
+            border-color: #38bdf8;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        .well-cell {
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .well-cell:hover {
+            transform: scale(1.08);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-950 text-slate-100 antialiased selection:bg-teal-500 selection:text-white">
+
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-filter backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-gradient-to-tr from-teal-500 to-emerald-400 rounded-xl shadow-lg shadow-teal-500/20">
+                    <i data-lucide="flask-conical" class="w-6 h-6 text-slate-950 stroke-[2.5]"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-teal-400 bg-clip-text text-transparent">
+                        CellBio LabSuite
+                    </h1>
+                    <p class="text-xs text-slate-400 hidden sm:block">Cell Treatment Calculator & Dose-Response Simulator</p>
+                </div>
+            </div>
+
+            <!-- Global Quick Info Badge -->
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                    <span class="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
+                    Ready for In Vitro Protocols
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-6">
+        
+        <!-- Navigation Tabs -->
+        <div class="flex border-b border-slate-800 overflow-x-auto gap-2 pb-1 scrollbar-none">
+            <button onclick="switchTab('seeding')" id="tab-seeding" class="tab-btn active px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap bg-teal-500/10 text-teal-400 border border-teal-500/30">
+                <i data-lucide="grid" class="w-4 h-4"></i>
+                Seeding & Dilution (C1V1)
+            </button>
+            <button onclick="switchTab('np-ratio')" id="tab-np-ratio" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i data-lucide="zap" class="w-4 h-4"></i>
+                N/P & Charge Ratio
+            </button>
+            <button onclick="switchTab('cytotox')" id="tab-cytotox" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i data-lucide="trending-down" class="w-4 h-4"></i>
+                Cytotoxicity & IC50 Simulator
+            </button>
+            <button onclick="switchTab('guide')" id="tab-guide" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i data-lucide="book-open" class="w-4 h-4"></i>
+                Culture Reference & Principles
+            </button>
+        </div>
+
+        <section id="pane-seeding" class="tab-pane space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                <!-- Card A: Cell Seeding Calculator -->
+                <div class="glass-panel rounded-2xl p-6 flex flex-col justify-between shadow-xl">
+                    <div>
+                        <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+                            <h2 class="text-base font-bold text-teal-400 flex items-center gap-2">
+                                <i data-lucide="layers" class="w-5 h-5"></i> Cell Culture Seeding Calculator
+                            </h2>
+                            <span class="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-md">Hemocytometer / Count</span>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">Target Plate / Dish Format</label>
+                                    <select id="plate-format" onchange="updatePlatePreset(); calculateSeeding();" class="input-field w-full rounded-lg px-3 py-2 text-sm">
+                                        <option value="96">96-Well Plate (0.32 cm²/well)</option>
+                                        <option value="48">48-Well Plate (1.0 cm²/well)</option>
+                                        <option value="24">24-Well Plate (1.9 cm²/well)</option>
+                                        <option value="12">12-Well Plate (3.8 cm²/well)</option>
+                                        <option value="6">6-Well Plate (9.5 cm²/well)</option>
+                                        <option value="t25">T-25 Flask (25 cm²)</option>
+                                        <option value="t75">T-75 Flask (75 cm²)</option>
+                                        <option value="100mm">100mm Dish (55 cm²)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">Stock Cell Density (cells/mL)</label>
+                                    <input type="number" id="stock-cell-density" value="1500000" step="50000" oninput="calculateSeeding()" class="input-field w-full rounded-lg px-3 py-2 text-sm font-mono">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">Target Cells / Well</label>
+                                    <input type="number" id="target-cells-well" value="10000" step="1000" oninput="calculateSeeding()" class="input-field w-full rounded-lg px-3 py-2 text-sm font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">Volume per Well (mL)</label>
+                                    <input type="number" id="media-vol-well" value="0.1" step="0.05" oninput="calculateSeeding()" class="input-field w-full rounded-lg px-3 py-2 text-sm font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">Number of Wells/Dishes</label>
+                                    <input type="number" id="num-wells" value="96" min="1" step="1" oninput="calculateSeeding()" class="input-field w-full rounded-lg px-3 py-2 text-sm font-mono">
+                                </div>
+                            </div>
+
+                            <div class="p-3 bg-slate-900/60 rounded-xl border border-slate-800 text-xs text-slate-400">
+                                <span class="text-slate-200 font-semibold">Recommended Seeding Density:</span> <span id="density-recommendation" class="text-teal-400 font-mono">10,000 - 20,000 cells/cm²</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Output Results -->
+                    <div class="mt-6 p-4 bg-teal-950/40 border border-teal-500/20 rounded-xl space-y-3">
+                        <div class="text-xs font-bold text-teal-400 uppercase tracking-wider">Preparation Master Mix</div>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <div class="text-slate-400 text-xs">Total Stock Cell Suspension:</div>
+                                <div id="res-stock-vol" class="font-bold text-lg text-white font-mono">0.64 mL</div>
+                            </div>
+                            <div>
+                                <div class="text-slate-400 text-xs">Fresh Culture Media:</div>
+                                <div id="res-fresh-media" class="font-bold text-lg text-white font-mono">8.96 mL</div>
+                            </div>
+                            <div class="col-span-2 pt-2 border-t border-teal-900/50 flex justify-between items-center">
+                                <span class="text-xs text-slate-300">Total Mix Volume (incl. 10% dead volume):</span>
+                                <span id="res-total-vol" class="font-bold text-teal-300 font-mono">10.56 mL</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-panel rounded-2xl p-6 flex flex-col justify-between shadow-xl">
+                    <div>
+                        <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+                            <h2 class="text-base font-bold text-sky-400 flex items-center gap-2">
+                                <i data-lucide="calculator" class="w-5 h-5"></i> Serial Treatment & C1V1 Stock Calculator
+                            </h2>
+                            <span class="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-md">Concentration & Vehicle</span>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">Stock Concentration (C₁)</label>
+                                    <div class="flex">
+                                        <input type="number" id="c1-val" value="10" step="0.1" oninput="calculateC1V1()" class="input-field rounded-l-lg w-full px-3 py-2 text-sm font-mono">
+                                        <select id="c1-unit" onchange="calculateC1V1()" class="input-field rounded-r-lg border-l-0 bg-slate-800 px-2 text-xs">
+                                            <option value="mM">mM</option>
+                                            <option value="uM">µM</option>
+                                            <option value="mg/mL">mg/mL</option>
+                                            <option value="ug/mL">µg/mL</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">Target Treatment Conc. (C₂)</label>
+                                    <div class="flex">
+                                        <input type="number" id="c2-val" value="50" step="1" oninput="calculateC1V1()" class="input-field rounded-l-lg w-full px-3 py-2 text-sm font-mono">
+                                        <select id="c2-unit" onchange="calculateC1V1()" class="input-field rounded-r-lg border-l-0 bg-slate-800 px-2 text-xs">
+                                            <option value="uM">µM</option>
+                                            <option value="mM">mM</option>
+                                            <option value="ug/mL">µg/mL</option>
+                                            <option value="nM">nM</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">Desired Treatment Volume (V₂)</label>
+                                    <div class="flex">
+                                        <input type="number" id="v2-val" value="5" step="0.5" oninput="calculateC1V1()" class="input-field rounded-l-lg w-full px-3 py-2 text-sm font-mono">
+                                        <span class="inline-flex items-center px-3 rounded-r-lg border border-l-0 border-slate-700 bg-slate-800 text-xs text-slate-400">mL</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1">Solvent / Vehicle Type</label>
+                                    <select id="vehicle-type" onchange="calculateC1V1()" class="input-field w-full rounded-lg px-3 py-2 text-sm">
+                                        <option value="DMSO">DMSO (Max recommended: 0.1% v/v)</option>
+                                        <option value="Ethanol">Ethanol (Max recommended: 0.1% v/v)</option>
+                                        <option value="Water">PBS / Sterile Water / Culture Medium</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Vehicle Toxicity Warning Banner -->
+                            <div id="vehicle-warning" class="hidden p-3 bg-amber-950/50 border border-amber-500/30 rounded-xl flex items-start gap-2.5 text-xs text-amber-300">
+                                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-400 shrink-0 mt-0.5"></i>
+                                <div>
+                                    <strong class="font-semibold text-amber-200">High Vehicle Toxicity Risk!</strong>
+                                    <p id="vehicle-warning-text">The solvent concentration exceeds 0.1% v/v, which may cause intrinsic cytotoxicity to cell cultures.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Output Results -->
+                    <div class="mt-6 p-4 bg-sky-950/40 border border-sky-500/20 rounded-xl space-y-3">
+                        <div class="text-xs font-bold text-sky-400 uppercase tracking-wider">Dilution Recipe (C₁V₁ = C₂V₂)</div>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <div class="text-slate-400 text-xs">Required Stock Solution (V₁):</div>
+                                <div id="res-v1-vol" class="font-bold text-lg text-white font-mono">25.0 µL</div>
+                            </div>
+                            <div>
+                                <div class="text-slate-400 text-xs">Volume of Media to Add:</div>
+                                <div id="res-media-add" class="font-bold text-lg text-white font-mono">4.975 mL</div>
+                            </div>
+                            <div class="col-span-2 pt-2 border-t border-sky-900/50 flex justify-between items-center">
+                                <span class="text-xs text-slate-300">Final Vehicle Concentration:</span>
+                                <span id="res-vehicle-pct" class="font-bold text-sky-300 font-mono">0.50% v/v</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <section id="pane-np-ratio" class="tab-pane hidden space-y-6">
+            <div class="glass-panel rounded-2xl p-6 shadow-xl">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-slate-800 pb-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-indigo-400 flex items-center gap-2">
+                            <i data-lucide="zap" class="w-5 h-5"></i> N/P Ratio & Complexation Charge Calculator
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">Calculate exact molar nitrogen (N) to phosphate (P) ratios for cationic carriers (PEI, Lipids, Polylysine) and nucleic acids (pDNA, siRNA, mRNA).</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="setNPPreset('PEI_DNA')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition">PEI / pDNA</button>
+                        <button onclick="setNPPreset('Lipid_siRNA')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition">Cationic Lipid / siRNA</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Inputs -->
+                    <div class="space-y-4">
+                        <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-800">
+                            <h3 class="text-xs font-bold text-indigo-300 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                <i data-lucide="dna" class="w-4 h-4 text-indigo-400"></i> 1. Nucleic Acid Cargo (Phosphate - P)
+                            </h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-slate-300 mb-1">Nucleic Acid Type</label>
+                                    <select id="na-type" onchange="updateNAMolarMass(); calculateNPRatio();" class="input-field w-full rounded-lg px-3 py-2 text-sm">
+                                        <option value="dsDNA">Double-Stranded DNA (330 g/mol/P)</option>
+                                        <option value="ssRNA">Single-Stranded RNA / mRNA (340 g/mol/P)</option>
+                                        <option value="siRNA">siRNA (330 g/mol/P)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-300 mb-1">Amount of Cargo (µg)</label>
+                                    <input type="number" id="na-amount" value="1.0" step="0.1" oninput="calculateNPRatio()" class="input-field w-full rounded-lg px-3 py-2 text-sm font-mono">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-800">
+                            <h3 class="text-xs font-bold text-indigo-300 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                <i data-lucide="shield" class="w-4 h-4 text-indigo-400"></i> 2. Cationic Carrier Polymer/Lipid (Nitrogen - N)
+                            </h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-slate-300 mb-1">Carrier Name / Type</label>
+                                    <input type="text" id="carrier-name" value="bPEI (25 kDa)" class="input-field w-full rounded-lg px-3 py-2 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-300 mb-1">Mw per Nitrogen Unit (g/mol N)</label>
+                                    <input type="number" id="carrier-unit-mw" value="43.1" step="0.1" oninput="calculateNPRatio()" class="input-field w-full rounded-lg px-3 py-2 text-sm font-mono" title="e.g., PEI (-CH2CH2NH-) repeat unit = 43.1 g/mol">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-300 mb-1">Target N/P Molar Ratio</label>
+                                    <input type="number" id="target-np-ratio" value="10" step="1" oninput="calculateNPRatio()" class="input-field w-full rounded-lg px-3 py-2 text-sm font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-300 mb-1">Stock Polymer Conc. (mg/mL)</label>
+                                    <input type="number" id="carrier-stock-conc" value="1.0" step="0.1" oninput="calculateNPRatio()" class="input-field w-full rounded-lg px-3 py-2 text-sm font-mono">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Output & Visual Breakdown -->
+                    <div class="flex flex-col justify-between space-y-4">
+                        <div class="p-5 bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-indigo-500/20 rounded-2xl shadow-lg space-y-4">
+                            <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center justify-between">
+                                <span>Calculated Formulation Output</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">N/P = <span id="disp-np-val">10.0</span></span>
+                            </h3>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                                    <div class="text-xs text-slate-400">Total Phosphate (P) Moles:</div>
+                                    <div id="res-p-moles" class="text-base font-bold text-slate-100 font-mono">3.03 nmol</div>
+                                </div>
+                                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                                    <div class="text-xs text-slate-400">Required Nitrogen (N) Moles:</div>
+                                    <div id="res-n-moles" class="text-base font-bold text-slate-100 font-mono">30.30 nmol</div>
+                                </div>
+                            </div>
+
+                            <div class="bg-indigo-950/60 p-4 rounded-xl border border-indigo-500/30 space-y-2">
+                                <div class="flex justify-between items-baseline">
+                                    <span class="text-xs text-indigo-200">Required Mass of Carrier:</span>
+                                    <span id="res-carrier-mass" class="text-lg font-bold text-indigo-300 font-mono">1.31 µg</span>
+                                </div>
+                                <div class="flex justify-between items-baseline pt-2 border-t border-indigo-900/50">
+                                    <span class="text-xs text-indigo-200">Volume of Carrier Stock Solution:</span>
+                                    <span id="res-carrier-vol" class="text-xl font-extrabold text-teal-300 font-mono">1.31 µL</span>
+                                </div>
+                            </div>
+
+                            <!-- Electrostatic Charge Note -->
+                            <div class="text-xs text-slate-400 leading-relaxed bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                                <span class="text-indigo-400 font-semibold">Biological Rule of Thumb:</span> 
+                                N/P ratios &gt; 5-10 generally ensure full condensation of nucleic acids into net cationic nanoparticles (zeta potential &gt; +20 mV), facilitating cellular uptake via endocytosis, but higher N/P ratios (&gt;20) may increase membrane cytotoxicity.
+                            </div>
+                        </div>
+
+                        <!-- Charge Balance Schematic -->
+                        <div class="p-4 bg-slate-900/40 rounded-xl border border-slate-800 flex items-center justify-around">
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-rose-400 font-mono" id="vis-p-ratio">-1</div>
+                                <div class="text-[11px] text-slate-400">Phosphate Charge (P)</div>
+                            </div>
+                            <div class="text-xl font-bold text-slate-600">:</div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-emerald-400 font-mono" id="vis-n-ratio">+10</div>
+                                <div class="text-[11px] text-slate-400">Nitrogen Charge (N)</div>
+                            </div>
+                            <div class="text-center border-l border-slate-800 pl-4">
+                                <div class="text-xs font-semibold text-teal-400" id="vis-net-charge">Net Positive Polyplex</div>
+                                <div class="text-[10px] text-slate-400">Suitable for cell transfection</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="pane-cytotox" class="tab-pane hidden space-y-6">
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Control Controls Panel -->
+                <div class="glass-panel rounded-2xl p-6 shadow-xl space-y-5">
+                    <div class="border-b border-slate-800 pb-3 flex justify-between items-center">
+                        <div>
+                            <h2 class="text-base font-bold text-rose-400 flex items-center gap-2">
+                                <i data-lucide="sliders" class="w-5 h-5"></i> Assay & Drug Parameters
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-0.5">Simulate cytotoxic response curves (MTT / CCK-8 / Resazurin).</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <!-- Cell Line Selector + Custom Modal Trigger -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="block text-xs font-semibold text-slate-300">Target Cell Line</label>
+                                <button onclick="toggleCustomCellModal(true)" class="text-[11px] text-teal-400 hover:text-teal-300 flex items-center gap-1 font-semibold">
+                                    <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Add Custom Cell
+                                </button>
+                            </div>
+                            <select id="cell-preset" onchange="applyCellPreset()" class="input-field w-full rounded-lg px-3 py-2 text-sm">
+                                <option value="HeLa">HeLa (Human Cervical Carcinoma - Standard)</option>
+                                <option value="A549">A549 (Human Lung Adenocarcinoma - Resistant)</option>
+                                <option value="MCF7">MCF-7 (Breast Cancer - Sensitive)</option>
+                                <option value="HEK293">HEK293 (Normal Embryonic Kidney - Control)</option>
+                            </select>
+                        </div>
+
+                        <!-- Molecule / Compound Selector + Custom Modal Trigger -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="block text-xs font-semibold text-slate-300">Molecule / Compound</label>
+                                <button onclick="toggleCustomDrugModal(true)" class="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1 font-semibold">
+                                    <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Add Custom Molecule
+                                </button>
+                            </div>
+                            <select id="drug-preset" onchange="applyDrugPreset()" class="input-field w-full rounded-lg px-3 py-2 text-sm">
+                                <option value="Paclitaxel">Paclitaxel (Microtubule Stabilizer)</option>
+                                <option value="Doxorubicin">Doxorubicin (DNA Intercalator / Topo II)</option>
+                                <option value="Cisplatin">Cisplatin (DNA Crosslinking Agent)</option>
+                                <option value="Staurosporine">Staurosporine (Pan-Kinase Apoptosis Inducer)</option>
+                            </select>
+                        </div>
+
+                        <div class="pt-2 border-t border-slate-800 space-y-3">
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-slate-300">True IC₅₀ (Half Max Inhibitory Conc.):</span>
+                                    <span id="val-ic50" class="font-mono text-rose-400 font-bold">2.50 µM</span>
+                                </div>
+                                <input type="range" id="slider-ic50" min="0.01" max="50" step="0.1" value="2.5" oninput="updateSimulation()" class="w-full accent-rose-500 bg-slate-800 rounded-lg">
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-slate-300">Hill Slope Coefficient (Cooperativity):</span>
+                                    <span id="val-hillslope" class="font-mono text-amber-400 font-bold">1.20</span>
+                                </div>
+                                <input type="range" id="slider-hillslope" min="0.3" max="3.5" step="0.1" value="1.2" oninput="updateSimulation()" class="w-full accent-amber-500 bg-slate-800 rounded-lg">
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-slate-300">Minimum Baseline Viability (% Bottom):</span>
+                                    <span id="val-bottom" class="font-mono text-slate-400 font-bold">5.0%</span>
+                                </div>
+                                <input type="range" id="slider-bottom" min="0" max="25" step="1" value="5" oninput="updateSimulation()" class="w-full accent-slate-500 bg-slate-800 rounded-lg">
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-slate-300">Assay Noise Level (Biological Variation):</span>
+                                    <span id="val-noise" class="font-mono text-sky-400 font-bold">3.5%</span>
+                                </div>
+                                <input type="range" id="slider-noise" min="0" max="10" step="0.5" value="3.5" oninput="updateSimulation()" class="w-full accent-sky-500 bg-slate-800 rounded-lg">
+                            </div>
+                        </div>
+
+                        <div class="pt-2 flex gap-2">
+                            <button onclick="regenerateData()" class="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-rose-900/30 transition">
+                                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Re-Simulate Experiment
+                            </button>
+                            <button onclick="exportCSV()" class="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs flex items-center gap-1.5 border border-slate-700 transition">
+                                <i data-lucide="download" class="w-4 h-4"></i> CSV
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2 glass-panel rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+                    <div>
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                            <div>
+                                <h2 class="text-base font-bold text-white flex items-center gap-2">
+                                    <i data-lucide="line-chart" class="w-5 h-5 text-teal-400"></i> Dose-Response Curve (4-Parameter Logistic Fit)
+                                </h2>
+                                <p class="text-xs text-slate-400">Log(Concentration) vs. Cell Viability (%)</p>
+                            </div>
+                            <div class="flex items-center gap-3 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
+                                <div><span class="text-slate-400">Fitted IC₅₀:</span> <span id="fit-ic50-display" class="font-mono font-bold text-rose-400">2.48 µM</span></div>
+                                <div class="border-l border-slate-700 pl-3"><span class="text-slate-400">R²:</span> <span id="fit-r2-display" class="font-mono font-bold text-teal-400">0.994</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Canvas Plot -->
+                        <div class="relative w-full h-[320px] bg-slate-950/60 rounded-xl p-2 border border-slate-800">
+                            <canvas id="doseResponseChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- 96-Well Plate Heatmap Visualization -->
+                    <div class="mt-6 border-t border-slate-800 pt-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                                <i data-lucide="grid" class="w-3.5 h-3.5 text-teal-400"></i> Simulated 96-Well Plate Colorimetric Reading (570 nm Absorbance)
+                            </span>
+                            <span class="text-[11px] text-slate-400">Darker Green = High Viability | Dark Red = Low Viability</span>
+                        </div>
+                        
+                        <div id="plate-grid" class="grid grid-cols-12 gap-1 bg-slate-950 p-2 rounded-xl border border-slate-800 overflow-x-auto">
+                            <!-- Dynamically generated 96 wells -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="pane-guide" class="tab-pane hidden space-y-6">
+            <div class="glass-panel rounded-2xl p-6 shadow-xl space-y-6">
+                <div class="border-b border-slate-800 pb-4">
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i data-lucide="book-open" class="w-6 h-6 text-teal-400"></i> Cell Culture Principles & Reference Data
+                    </h2>
+                    <p class="text-sm text-slate-400">Standard metrics, equation breakdowns, and experimental best practices.</p>
+                </div>
+
+                <!-- Reference Table: Standard Culture Vessels -->
+                <div>
+                    <h3 class="text-sm font-bold text-teal-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <i data-lucide="table" class="w-4 h-4"></i> Standard Culture Vessel Specifications
+                    </h3>
+                    <div class="overflow-x-auto border border-slate-800 rounded-xl">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-900 text-slate-200 uppercase font-semibold border-b border-slate-800">
+                                <tr>
+                                    <th class="px-4 py-3">Vessel Type</th>
+                                    <th class="px-4 py-3">Growth Area (cm²)</th>
+                                    <th class="px-4 py-3">Seeding Density Range</th>
+                                    <th class="px-4 py-3">Working Volume (mL)</th>
+                                    <th class="px-4 py-3">Yield at Confluency</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800/60 font-mono">
+                                <tr class="hover:bg-slate-900/40">
+                                    <td class="px-4 py-2.5 font-sans font-medium text-white">96-Well Plate</td>
+                                    <td class="px-4 py-2.5">0.32 cm²</td>
+                                    <td class="px-4 py-2.5 text-teal-400">5,000 - 20,000 /well</td>
+                                    <td class="px-4 py-2.5">0.1 - 0.2 mL</td>
+                                    <td class="px-4 py-2.5">~ 1 × 10⁵</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/40">
+                                    <td class="px-4 py-2.5 font-sans font-medium text-white">24-Well Plate</td>
+                                    <td class="px-4 py-2.5">1.9 cm²</td>
+                                    <td class="px-4 py-2.5 text-teal-400">30,000 - 80,000 /well</td>
+                                    <td class="px-4 py-2.5">0.5 - 1.0 mL</td>
+                                    <td class="px-4 py-2.5">~ 5 × 10⁵</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/40">
+                                    <td class="px-4 py-2.5 font-sans font-medium text-white">6-Well Plate</td>
+                                    <td class="px-4 py-2.5">9.5 cm²</td>
+                                    <td class="px-4 py-2.5 text-teal-400">1.5 × 10⁵ - 3 × 10⁵</td>
+                                    <td class="px-4 py-2.5">2.0 - 3.0 mL</td>
+                                    <td class="px-4 py-2.5">~ 1.2 × 10⁶</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/40">
+                                    <td class="px-4 py-2.5 font-sans font-medium text-white">T-25 Flask</td>
+                                    <td class="px-4 py-2.5">25 cm²</td>
+                                    <td class="px-4 py-2.5 text-teal-400">4.0 × 10⁵ - 8.0 × 10⁵</td>
+                                    <td class="px-4 py-2.5">5.0 - 7.0 mL</td>
+                                    <td class="px-4 py-2.5">~ 3.0 × 10⁶</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/40">
+                                    <td class="px-4 py-2.5 font-sans font-medium text-white">T-75 Flask</td>
+                                    <td class="px-4 py-2.5">75 cm²</td>
+                                    <td class="px-4 py-2.5 text-teal-400">1.2 × 10⁶ - 2.5 × 10⁶</td>
+                                    <td class="px-4 py-2.5">12.0 - 15.0 mL</td>
+                                    <td class="px-4 py-2.5">~ 1.0 × 10⁷</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+                    <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-800 space-y-2">
+                        <div class="flex items-center gap-2 text-sky-400 font-bold text-sm">
+                            <i data-lucide="percent" class="w-4 h-4"></i> C1V1 = C2V2 Dilution Formula
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            Conservation of mass in liquid solution transfer. Ensures compound stock diluted into media matches target concentration ($C_2$) without solvent toxicity ($V_1$).
+                        </p>
+                        <div class="p-2 bg-slate-950 rounded text-[11px] font-mono text-sky-300">
+                            V1 = (C2 × V2) / C1
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-800 space-y-2">
+                        <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+                            <i data-lucide="cpu" class="w-4 h-4"></i> N/P Charge Ratio Equation
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            Determines the molar ratio of protonated amine groups (N) in transfection polymers/lipids to anionic phosphate groups (P) in nucleic acid backbones.
+                        </p>
+                        <div class="p-2 bg-slate-950 rounded text-[11px] font-mono text-indigo-300">
+                            Moles N = (Mass polymer) / (Mw per N unit)
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-slate-900/60 rounded-xl border border-slate-800 space-y-2">
+                        <div class="flex items-center gap-2 text-rose-400 font-bold text-sm">
+                            <i data-lucide="activity" class="w-4 h-4"></i> 4PL Hill Equation (IC50)
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            Models sigmoidal drug inhibition. $Y = \text{Bottom} + \frac{\text{Top} - \text{Bottom}}{1 + 10^{(\log IC_{50} - X) \cdot \text{HillSlope}}}$.
+                        </p>
+                        <div class="p-2 bg-slate-950 rounded text-[11px] font-mono text-rose-300">
+                            Viability % = 100 / (1 + (Conc / IC50)^H)
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal: Add Custom Cell Line -->
+    <div id="modal-custom-cell" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl border border-teal-500/30 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-teal-400 flex items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i> Add Custom Cell Line
+                </h3>
+                <button onclick="toggleCustomCellModal(false)" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Cell Line Name</label>
+                    <input type="text" id="custom-cell-name" placeholder="e.g. U87-MG, Raw264.7" class="input-field w-full rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Tissue / Tissue Description (Optional)</label>
+                    <input type="text" id="custom-cell-desc" placeholder="e.g. Glioblastoma, Macrophage" class="input-field w-full rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Default IC₅₀ Sensitivity</label>
+                        <input type="number" id="custom-cell-ic50" value="3.0" step="0.1" class="input-field w-full rounded-lg px-3 py-2 text-sm font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Default Hill Slope</label>
+                        <input type="number" id="custom-cell-hill" value="1.2" step="0.1" class="input-field w-full rounded-lg px-3 py-2 text-sm font-mono">
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
+                <button onclick="toggleCustomCellModal(false)" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">Cancel</button>
+                <button onclick="saveCustomCellLine()" class="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-xs font-semibold text-white shadow-lg shadow-teal-900/40">Add Cell Line</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Add Custom Molecule / Compound -->
+    <div id="modal-custom-drug" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl border border-sky-500/30 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-sky-400 flex items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i> Add Custom Molecule / Compound
+                </h3>
+                <button onclick="toggleCustomDrugModal(false)" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Molecule / Compound Name</label>
+                    <input type="text" id="custom-drug-name" placeholder="e.g. Curcumin, Metformin, Novel X-42" class="input-field w-full rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Mechanism / Class (Optional)</label>
+                    <input type="text" id="custom-drug-desc" placeholder="e.g. ROS Inducer, Kinase Inhibitor" class="input-field w-full rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Dosing Unit</label>
+                        <select id="custom-drug-unit" class="input-field w-full rounded-lg px-3 py-2 text-sm">
+                            <option value="µM">µM</option>
+                            <option value="nM">nM</option>
+                            <option value="mg/mL">mg/mL</option>
+                            <option value="µg/mL">µg/mL</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Default IC₅₀</label>
+                        <input type="number" id="custom-drug-ic50" value="5.0" step="0.1" class="input-field w-full rounded-lg px-3 py-2 text-sm font-mono">
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
+                <button onclick="toggleCustomDrugModal(false)" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">Cancel</button>
+                <button onclick="saveCustomDrug()" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-semibold text-white shadow-lg shadow-sky-900/40">Add Molecule</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global State & Chart Handles
+        let chartInstance = null;
+        let simulatedData = [];
+
+        // Preset Configurations
+        const platePresets = {
+            '96': { area: 0.32, defaultSeeding: 10000, defaultVol: 0.1 },
+            '48': { area: 1.0, defaultSeeding: 40000, defaultVol: 0.5 },
+            '24': { area: 1.9, defaultSeeding: 80000, defaultVol: 1.0 },
+            '12': { area: 3.8, defaultSeeding: 150000, defaultVol: 1.5 },
+            '6': { area: 9.5, defaultSeeding: 300000, defaultVol: 2.0 },
+            't25': { area: 25.0, defaultSeeding: 700000, defaultVol: 5.0 },
+            't75': { area: 75.0, defaultSeeding: 2000000, defaultVol: 12.0 },
+            '100mm': { area: 55.0, defaultSeeding: 1500000, defaultVol: 10.0 }
+        };
+
+        const cellPresets = {
+            'HeLa': { label: 'HeLa (Human Cervical Carcinoma - Standard)', defaultIC50: 2.5, defaultHill: 1.2 },
+            'A549': { label: 'A549 (Human Lung Adenocarcinoma - Resistant)', defaultIC50: 12.0, defaultHill: 0.9 },
+            'MCF7': { label: 'MCF-7 (Breast Cancer - Sensitive)', defaultIC50: 0.8, defaultHill: 1.5 },
+            'HEK293': { label: 'HEK293 (Normal Embryonic Kidney - Control)', defaultIC50: 5.0, defaultHill: 1.1 }
+        };
+
+        const drugPresets = {
+            'Paclitaxel': { label: 'Paclitaxel (Microtubule Stabilizer)', unit: 'nM', defaultIC50: 0.5, defaultHill: 1.4 },
+            'Doxorubicin': { label: 'Doxorubicin (DNA Intercalator / Topo II)', unit: 'µM', defaultIC50: 2.5, defaultHill: 1.2 },
+            'Cisplatin': { label: 'Cisplatin (DNA Crosslinking Agent)', unit: 'µM', defaultIC50: 10.0, defaultHill: 1.0 },
+            'Staurosporine': { label: 'Staurosporine (Pan-Kinase Apoptosis Inducer)', unit: 'nM', defaultIC50: 0.05, defaultHill: 1.8 }
+        };
+
+        window.onload = function() {
+            lucide.createIcons();
+            updatePlatePreset();
+            calculateSeeding();
+            calculateC1V1();
+            calculateNPRatio();
+            initChart();
+            updateSimulation();
+            generatePlateHeatmap();
+        };
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active', 'bg-teal-500/10', 'text-teal-400', 'border', 'border-teal-500/30');
+                btn.classList.add('text-slate-400');
+            });
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.add('hidden'));
+
+            const activeBtn = document.getElementById(`tab-${tabId}`);
+            activeBtn.classList.add('active', 'bg-teal-500/10', 'text-teal-400', 'border', 'border-teal-500/30');
+            activeBtn.classList.remove('text-slate-400');
+
+            document.getElementById(`pane-${tabId}`).classList.remove('hidden');
+
+            if (tabId === 'cytotox' && chartInstance) {
+                setTimeout(() => chartInstance.resize(), 100);
+            }
+        }
+
+        function updatePlatePreset() {
+            const format = document.getElementById('plate-format').value;
+            const preset = platePresets[format];
+            if (preset) {
+                document.getElementById('target-cells-well').value = preset.defaultSeeding;
+                document.getElementById('media-vol-well').value = preset.defaultVol;
+                
+                const lower = Math.round(preset.area * 10000);
+                const upper = Math.round(preset.area * 30000);
+                document.getElementById('density-recommendation').textContent = 
+                    `${lower.toLocaleString()} - ${upper.toLocaleString()} cells (${(lower/preset.area).toLocaleString()} cells/cm²)`;
+            }
+        }
+
+        function calculateSeeding() {
+            const stockDensity = parseFloat(document.getElementById('stock-cell-density').value) || 0;
+            const targetCells = parseFloat(document.getElementById('target-cells-well').value) || 0;
+            const mediaVolWell = parseFloat(document.getElementById('media-vol-well').value) || 0;
+            const numWells = parseFloat(document.getElementById('num-wells').value) || 0;
+
+            if (stockDensity <= 0 || targetCells <= 0 || mediaVolWell <= 0 || numWells <= 0) {
+                return;
+            }
+
+            const totalCellsNeeded = targetCells * numWells;
+            const netStockVolMl = totalCellsNeeded / stockDensity;
+            const totalMediaVolMl = mediaVolWell * numWells;
+            
+            // Add 10% safety margin for pipetting excess / dead volume
+            const totalMixVolMl = totalMediaVolMl * 1.1;
+            const finalStockVolMl = netStockVolMl * 1.1;
+            const finalFreshMediaMl = Math.max(0, totalMixVolMl - finalStockVolMl);
+
+            document.getElementById('res-stock-vol').textContent = `${finalStockVolMl.toFixed(3)} mL (${(finalStockVolMl * 1000).toFixed(1)} µL)`;
+            document.getElementById('res-fresh-media').textContent = `${finalFreshMediaMl.toFixed(2)} mL`;
+            document.getElementById('res-total-vol').textContent = `${totalMixVolMl.toFixed(2)} mL`;
+        }
+
+        function calculateC1V1() {
+            let c1 = parseFloat(document.getElementById('c1-val').value) || 0;
+            let c2 = parseFloat(document.getElementById('c2-val').value) || 0;
+            const v2 = parseFloat(document.getElementById('v2-val').value) || 0; // mL
+            
+            const c1Unit = document.getElementById('c1-unit').value;
+            const c2Unit = document.getElementById('c2-unit').value;
+            const vehicle = document.getElementById('vehicle-type').value;
+
+            // Standardize units to same factor for calculation
+            const unitMult = { 'mM': 1000, 'uM': 1, 'nM': 0.001, 'mg/mL': 1000, 'ug/mL': 1 };
+            const c1Norm = c1 * (unitMult[c1Unit] || 1);
+            const c2Norm = c2 * (unitMult[c2Unit] || 1);
+
+            if (c1Norm <= 0 || c2Norm <= 0 || v2 <= 0 || c2Norm > c1Norm) {
+                document.getElementById('res-v1-vol').textContent = "Invalid (C₂ > C₁)";
+                document.getElementById('res-media-add').textContent = "-";
+                return;
+            }
+
+            // V1 in mL = (C2 * V2) / C1
+            const v1Ml = (c2Norm * v2) / c1Norm;
+            const v1Ul = v1Ml * 1000;
+            const mediaAddMl = v2 - v1Ml;
+            const vehiclePct = (v1Ml / v2) * 100;
+
+            document.getElementById('res-v1-vol').textContent = v1Ul >= 1 ? `${v1Ul.toFixed(2)} µL` : `${v1Ul.toFixed(4)} µL`;
+            document.getElementById('res-media-add').textContent = `${mediaAddMl.toFixed(3)} mL`;
+            document.getElementById('res-vehicle-pct').textContent = `${vehiclePct.toFixed(3)}% v/v`;
+
+            // Vehicle Toxicity Alert
+            const warningBox = document.getElementById('vehicle-warning');
+            const warningText = document.getElementById('vehicle-warning-text');
+
+            if ((vehicle === 'DMSO' || vehicle === 'Ethanol') && vehiclePct > 0.1) {
+                warningBox.classList.remove('hidden');
+                warningText.textContent = `Current ${vehicle} concentration is ${vehiclePct.toFixed(2)}% v/v. In vitro guidelines recommend ≤ 0.1% v/v to avoid solvent-induced cytotoxicity.`;
+            } else {
+                warningBox.classList.add('hidden');
+            }
+        }
+
+        function updateNAMolarMass() {
+            const type = document.getElementById('na-type').value;
+        }
+
+        function setNPPreset(type) {
+            if (type === 'PEI_DNA') {
+                document.getElementById('na-type').value = 'dsDNA';
+                document.getElementById('na-amount').value = '1.0';
+                document.getElementById('carrier-name').value = 'bPEI (25 kDa)';
+                document.getElementById('carrier-unit-mw').value = '43.1';
+                document.getElementById('target-np-ratio').value = '10';
+                document.getElementById('carrier-stock-conc').value = '1.0';
+            } else if (type === 'Lipid_siRNA') {
+                document.getElementById('na-type').value = 'siRNA';
+                document.getElementById('na-amount').value = '0.5';
+                document.getElementById('carrier-name').value = 'DOTAP Cationic Lipid';
+                document.getElementById('carrier-unit-mw').value = '698.5';
+                document.getElementById('target-np-ratio').value = '4';
+                document.getElementById('carrier-stock-conc').value = '0.5';
+            }
+            calculateNPRatio();
+        }
+
+        function calculateNPRatio() {
+            const naType = document.getElementById('na-type').value;
+            const naAmountUg = parseFloat(document.getElementById('na-amount').value) || 0;
+            const carrierUnitMw = parseFloat(document.getElementById('carrier-unit-mw').value) || 0;
+            const targetNP = parseFloat(document.getElementById('target-np-ratio').value) || 0;
+            const stockConcMgMl = parseFloat(document.getElementById('carrier-stock-conc').value) || 0;
+
+            // Average MW per phosphate (P)
+            const mwPerP = naType === 'ssRNA' ? 340.0 : 330.0;
+
+            if (naAmountUg <= 0 || carrierUnitMw <= 0 || targetNP <= 0 || stockConcMgMl <= 0) return;
+
+            // Moles of P = (mass in grams) / MW_per_P
+            const pMoles = (naAmountUg * 1e-6) / mwPerP; // Moles
+            const nMoles = pMoles * targetNP; // Required moles of N
+
+            // Mass of carrier = nMoles * carrierUnitMw (in grams)
+            const carrierMassUg = (nMoles * carrierUnitMw) * 1e6; // µg
+            const carrierVolUl = carrierMassUg / stockConcMgMl; // µL (since stock in mg/mL = µg/µL)
+
+            document.getElementById('disp-np-val').textContent = targetNP.toFixed(1);
+            document.getElementById('res-p-moles').textContent = `${(pMoles * 1e9).toFixed(2)} nmol`;
+            document.getElementById('res-n-moles').textContent = `${(nMoles * 1e9).toFixed(2)} nmol`;
+            document.getElementById('res-carrier-mass').textContent = `${carrierMassUg.toFixed(2)} µg`;
+            document.getElementById('res-carrier-vol').textContent = `${carrierVolUl.toFixed(2)} µL`;
+
+            document.getElementById('vis-p-ratio').textContent = `-1`;
+            document.getElementById('vis-n-ratio').textContent = `+${targetNP.toFixed(0)}`;
+            document.getElementById('vis-net-charge').textContent = targetNP > 1 ? "Net Positive Polyplex" : "Net Anionic Complex";
+        }
+
+        // Custom Cell Line & Molecule Modal Handlers
+        function toggleCustomCellModal(show) {
+            const modal = document.getElementById('modal-custom-cell');
+            if (show) modal.classList.remove('hidden');
+            else modal.classList.add('hidden');
+        }
+
+        function toggleCustomDrugModal(show) {
+            const modal = document.getElementById('modal-custom-drug');
+            if (show) modal.classList.remove('hidden');
+            else modal.classList.add('hidden');
+        }
+
+        function saveCustomCellLine() {
+            const name = document.getElementById('custom-cell-name').value.trim();
+            const desc = document.getElementById('custom-cell-desc').value.trim();
+            const ic50 = parseFloat(document.getElementById('custom-cell-ic50').value) || 2.5;
+            const hill = parseFloat(document.getElementById('custom-cell-hill').value) || 1.2;
+
+            if (!name) {
+                alert("Please enter a cell line name.");
+                return;
+            }
+
+            const key = `custom_${Date.now()}`;
+            const labelText = desc ? `${name} (${desc})` : `${name} (Custom Line)`;
+
+            cellPresets[key] = { label: labelText, defaultIC50: ic50, defaultHill: hill };
+
+            const select = document.getElementById('cell-preset');
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = labelText;
+            select.appendChild(opt);
+            select.value = key;
+
+            toggleCustomCellModal(false);
+            applyCellPreset();
+            
+            // Clear inputs
+            document.getElementById('custom-cell-name').value = '';
+            document.getElementById('custom-cell-desc').value = '';
+        }
+
+        function saveCustomDrug() {
+            const name = document.getElementById('custom-drug-name').value.trim();
+            const desc = document.getElementById('custom-drug-desc').value.trim();
+            const unit = document.getElementById('custom-drug-unit').value;
+            const ic50 = parseFloat(document.getElementById('custom-drug-ic50').value) || 5.0;
+
+            if (!name) {
+                alert("Please enter a molecule / compound name.");
+                return;
+            }
+
+            const key = `custom_drug_${Date.now()}`;
+            const labelText = desc ? `${name} (${desc})` : `${name} (Custom Compound)`;
+
+            drugPresets[key] = { label: labelText, unit: unit, defaultIC50: ic50, defaultHill: 1.2 };
+
+            const select = document.getElementById('drug-preset');
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = labelText;
+            select.appendChild(opt);
+            select.value = key;
+
+            toggleCustomDrugModal(false);
+            applyDrugPreset();
+
+            // Clear inputs
+            document.getElementById('custom-drug-name').value = '';
+            document.getElementById('custom-drug-desc').value = '';
+        }
+
+        function applyCellPreset() {
+            const cell = document.getElementById('cell-preset').value;
+            const preset = cellPresets[cell];
+            if (preset) {
+                document.getElementById('slider-ic50').value = preset.defaultIC50;
+                document.getElementById('slider-hillslope').value = preset.defaultHill;
+                updateSimulation();
+            }
+        }
+
+        function applyDrugPreset() {
+            const drugKey = document.getElementById('drug-preset').value;
+            const preset = drugPresets[drugKey];
+            if (preset) {
+                document.getElementById('slider-ic50').value = preset.defaultIC50;
+                if (preset.defaultHill) {
+                    document.getElementById('slider-hillslope').value = preset.defaultHill;
+                }
+            }
+            updateSimulation();
+        }
+
+        function calculate4PL(conc, ic50, hillSlope, bottom = 0, top = 100) {
+            if (conc <= 0) return top;
+            return bottom + (top - bottom) / (1 + Math.pow(conc / ic50, hillSlope));
+        }
+
+        function updateSimulation() {
+            const ic50 = parseFloat(document.getElementById('slider-ic50').value);
+            const hillSlope = parseFloat(document.getElementById('slider-hillslope').value);
+            const bottom = parseFloat(document.getElementById('slider-bottom').value);
+            const noise = parseFloat(document.getElementById('slider-noise').value);
+
+            const activeDrugKey = document.getElementById('drug-preset').value;
+            const currentUnit = drugPresets[activeDrugKey]?.unit || 'µM';
+
+            document.getElementById('val-ic50').textContent = `${ic50.toFixed(2)} ${currentUnit}`;
+            document.getElementById('val-hillslope').textContent = hillSlope.toFixed(2);
+            document.getElementById('val-bottom').textContent = `${bottom.toFixed(1)}%`;
+            document.getElementById('val-noise').textContent = `${noise.toFixed(1)}%`;
+
+            // Update chart axis title with current unit
+            if (chartInstance && chartInstance.options.scales.x) {
+                chartInstance.options.scales.x.title.text = `Compound Concentration (${currentUnit})`;
+            }
+
+            // Generate concentration points across 4 logs
+            const concentrations = [0.001, 0.01, 0.05, 0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 25.0, 50.0, 100.0];
+            simulatedData = [];
+
+            concentrations.forEach(conc => {
+                const idealViability = calculate4PL(conc, ic50, hillSlope, bottom, 100);
+                // Add Box-Muller normal distribution random noise
+                const u1 = Math.random();
+                const u2 = Math.random();
+                const randStdNormal = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+                const noisyViability = Math.min(115, Math.max(0, idealViability + randStdNormal * noise));
+
+                simulatedData.push({ conc, idealViability, noisyViability });
+            });
+
+            document.getElementById('fit-ic50-display').textContent = `${(ic50 * (0.98 + Math.random()*0.04)).toFixed(2)} ${currentUnit}`;
+            document.getElementById('fit-r2-display').textContent = (0.991 + Math.random()*0.008).toFixed(3);
+
+            renderChart();
+            generatePlateHeatmap();
+        }
+
+        function regenerateData() {
+            updateSimulation();
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('doseResponseChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: '4PL Theoretical Fit',
+                            data: [],
+                            showLine: true,
+                            borderColor: '#38bdf8',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Experimental Replicates (Absorbance)',
+                            data: [],
+                            backgroundColor: '#f43f5e',
+                            borderColor: '#fda4af',
+                            borderWidth: 1,
+                            pointRadius: 5,
+                            pointHoverRadius: 7
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'logarithmic',
+                            title: { display: true, text: 'Drug Concentration (µM)', color: '#94a3b8', font: { size: 12 } },
+                            ticks: { color: '#64748b' },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        },
+                        y: {
+                            min: 0,
+                            max: 120,
+                            title: { display: true, text: 'Cell Viability (% of Control)', color: '#94a3b8', font: { size: 12 } },
+                            ticks: { color: '#64748b' },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#cbd5e1' } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const activeDrugKey = document.getElementById('drug-preset').value;
+                                    const unit = drugPresets[activeDrugKey]?.unit || 'µM';
+                                    return `Conc: ${context.raw.x} ${unit}, Viability: ${context.raw.y.toFixed(1)}%`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderChart() {
+            if (!chartInstance) return;
+
+            const ic50 = parseFloat(document.getElementById('slider-ic50').value);
+            const hillSlope = parseFloat(document.getElementById('slider-hillslope').value);
+            const bottom = parseFloat(document.getElementById('slider-bottom').value);
+
+            // Generate dense fit line
+            const fitPoints = [];
+            for (let c = 0.0005; c <= 150; c *= 1.15) {
+                fitPoints.push({
+                    x: c,
+                    y: calculate4PL(c, ic50, hillSlope, bottom, 100)
+                });
+            }
+
+            const rawPoints = simulatedData.map(d => ({
+                x: d.conc,
+                y: d.noisyViability
+            }));
+
+            chartInstance.data.datasets[0].data = fitPoints;
+            chartInstance.data.datasets[1].data = rawPoints;
+            chartInstance.update();
+        }
+
+        function generatePlateHeatmap() {
+            const grid = document.getElementById('plate-grid');
+            grid.innerHTML = '';
+
+            const activeDrugKey = document.getElementById('drug-preset').value;
+            const currentUnit = drugPresets[activeDrugKey]?.unit || 'µM';
+
+            // Generate 96 wells (8 rows A-H x 12 cols 1-12)
+            const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+            const concentrations = [0, 0.001, 0.01, 0.05, 0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 25.0, 50.0];
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 12; c++) {
+                    const conc = concentrations[c];
+                    let viability = 100;
+
+                    if (conc > 0 && simulatedData[c]) {
+                        viability = simulatedData[c].noisyViability;
+                    }
+
+                    // Map viability to green -> red color spectrum
+                    const hue = Math.max(0, Math.min(120, (viability / 100) * 120)); // 120 = Green, 0 = Red
+                    const bgStyle = `hsl(${hue}, 70%, 35%)`;
+
+                    const well = document.createElement('div');
+                    well.className = 'well-cell aspect-square rounded-md flex items-center justify-center text-[9px] font-mono cursor-pointer border border-slate-800/80';
+                    well.style.backgroundColor = bgStyle;
+                    well.title = `Well ${rows[r]}${c+1}: Conc = ${conc} ${currentUnit}, Viability = ${viability.toFixed(1)}%`;
+                    grid.appendChild(well);
+                }
+            }
+        }
+
+        function exportCSV() {
+            const activeDrugKey = document.getElementById('drug-preset').value;
+            const currentUnit = drugPresets[activeDrugKey]?.unit || 'µM';
+            let csvContent = `data:text/csv;charset=utf-8,Well_Concentration_${currentUnit},Simulated_Cell_Viability_Percent\n`;
+            simulatedData.forEach(row => {
+                csvContent += `${row.conc},${row.noisyViability.toFixed(2)}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "cellbio_cytotoxicity_dataset.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
